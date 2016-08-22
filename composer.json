@@ -1,0 +1,24 @@
+{
+    "name": "magero/magento-channel-manager",
+    "description": "Tool for management of magento channel",
+    "keywords": ["Magento", "extensions", "channel"],
+    "homepage": "https://docs.magero.pw/dev-tools/magento-channel-manager",
+    "license": "MIT",
+    "type": "magento-develop-tool",
+    "authors": [
+        {
+            "name": "VVeb Developer",
+            "email": "developer@vveb.pro"
+        }
+    ],
+    "require": {
+        "symfony/console": "^3.1",
+        "symfony/filesystem": "^3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Magero\\Channel\\Manager\\": "src/Manager/"
+        }
+    },
+    "bin": ["bin/channel-manager"]
+}
