@@ -83,4 +83,21 @@ class XmlProcessor
 
         return null;
     }
+
+    /**
+     * @param SimpleXMLElement $xmlElement
+     * @param string $name
+     * @return SimpleXMLElement|null
+     */
+    public function getPackageByName($xmlElement, $name)
+    {
+        /** @var SimpleXMLElement $child */
+        foreach ($xmlElement->children() as $child) {
+            if ($this->getChildValue($child, 'n') == $name) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
 }

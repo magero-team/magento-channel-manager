@@ -83,9 +83,42 @@ class UploadCommand extends BaseCommand
             );
         }
 
-        $packageDirectory = $app->getChannelDirectory($packageName);
+        $stability = $input->getOption(self::OPTION_PACKAGE_STABILITY);
+        if (!in_array($stability, array('alpha', 'beta', 'stable'))) {
+            $stability = 'stable';
+        }
 
         $xmlProcessor = new XmlProcessor();
+
+        $packagesFile = $app->getChannelDirectory('packages.xml');
+        if ($this->fileSystem->exists($packagesFile)) {
+            $packagesXml = simplexml_load_file($packagesFile);
+        } else {
+            $packagesXml = simplexml_load_string("<?xml version=\"1.0\"?><data/>");
+        }
+        if (!$packageXmlElement = $xmlProcessor->getPackageByName($packagesXml, $packageName)) {
+            $packageXmlElement = $packagesXml->addChild('p');
+            $packageXmlElement->addChild('n')[0] = $packageName;
+        }
+        if (!$packageReleasesXmlElement = $xmlProcessor->getChild($packageXmlElement, 'r')) {
+            $packageReleasesXmlElement = $packageXmlElement->addChild('r');
+        }
+
+        $stabilityTag = 's';
+        switch ($stability) {
+            case 'alpha':
+                $stabilityTag = 'a';
+                break;
+            case 'beta':
+                $stabilityTag = 'b';
+                break;
+        }
+        if (!$packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packageReleasesXmlElement, $stabilityTag)) {
+            $packageReleaseStabilityXmlElement = $packageReleasesXmlElement->addChild($stabilityTag);
+            $packageReleaseStabilityXmlElement[0] = $packageVersion;
+        }
+
+        $packageDirectory = $app->getChannelDirectory($packageName);
         $releasesFile = $packageDirectory . DIRECTORY_SEPARATOR . 'releases.xml';
         if ($this->fileSystem->exists($releasesFile)) {
             $releasesXml = simplexml_load_file($releasesFile);
@@ -100,8 +133,8 @@ class UploadCommand extends BaseCommand
 
         $release = $releasesXml->addChild('r');
         $release->addChild('v')[0] = $packageVersion;
-        $release->addChild('s')[0] = $input->getOption(self::OPTION_PACKAGE_STABILITY);
-        $release->addChild('s')[0] = date('Y-m-d');
+        $release->addChild('s')[0] = $stability;
+        $release->addChild('d')[0] = date('Y-m-d');
 
         $this->fileSystem->mkdir($packageDirectory);
 
@@ -116,12 +149,14 @@ class UploadCommand extends BaseCommand
         }
 
         $packageFileName = $packageVersionDirectory . DIRECTORY_SEPARATOR . $packageName . '-' . $packageVersion . '.tgz';
-        $this->fileSystem->rename($fileName, $packageFileName);
+//        $this->fileSystem->rename($fileName, $packageFileName);
+        $this->fileSystem->copy($fileName, $packageFileName);
         $this->fileSystem->dumpFile(
             $packageVersionDirectory . DIRECTORY_SEPARATOR . 'package.xml',
             file_get_contents($pharPackageXmlFile)
         );
         $this->fileSystem->dumpFile($releasesFile, $releasesXml->asXML());
+        $this->fileSystem->dumpFile($packagesFile, $packagesXml->asXML());
 
         $output->writeln('Package was uploaded successfully');
     }
