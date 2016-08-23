@@ -39,11 +39,12 @@ class XmlProcessor
      */
     public function getChildValue($xmlElement, $childName, $default = null)
     {
-        if (!$child = $this->getChild($xmlElement, $childName)) {
+        $child = $this->getChild($xmlElement, $childName);
+        if (is_null($child)) {
             return $default;
         }
 
-        return $child[0];
+        return (string)$child;
     }
 
     /**
