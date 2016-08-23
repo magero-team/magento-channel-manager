@@ -115,8 +115,8 @@ class UploadCommand extends BaseCommand
         }
         if (!$packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packageReleasesXmlElement, $stabilityTag)) {
             $packageReleaseStabilityXmlElement = $packageReleasesXmlElement->addChild($stabilityTag);
-            $packageReleaseStabilityXmlElement[0] = $packageVersion;
         }
+        $packageReleaseStabilityXmlElement[0] = $packageVersion;
 
         $packageDirectory = $app->getChannelDirectory($packageName);
         $releasesFile = $packageDirectory . DIRECTORY_SEPARATOR . 'releases.xml';
