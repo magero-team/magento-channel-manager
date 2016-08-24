@@ -55,10 +55,11 @@ class XmlProcessor
      */
     public function setChildValue($xmlElement, $childName, $value)
     {
-        if (!$child = $this->getChild($xmlElement, $childName)) {
+        $child = $this->getChild($xmlElement, $childName);
+        if (is_null($child)) {
             $child = $xmlElement->addChild($childName);
-            $child[0] = $value;
         }
+        $child[0] = $value;
 
         return $this;
     }

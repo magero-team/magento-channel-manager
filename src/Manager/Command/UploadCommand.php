@@ -11,10 +11,10 @@
 namespace Magero\Channel\Manager\Command;
 
 use PharData;
+use SimpleXMLElement;
 use Symfony\Component\Console\Exception;
 use Symfony\Component\Console\Input;
 use Symfony\Component\Console\Output;
-use Symfony\Component\Filesystem;
 use Magero\Channel\Manager\XmlProcessor;
 
 class UploadCommand extends BaseCommand
@@ -136,10 +136,7 @@ class UploadCommand extends BaseCommand
         $release->addChild('s')[0] = $stability;
         $release->addChild('d')[0] = date('Y-m-d');
 
-        $this->fileSystem->mkdir($packageDirectory);
-
         $packageVersionDirectory = $app->getChannelDirectory($packageName . DIRECTORY_SEPARATOR . $packageVersion);
-        $this->fileSystem->mkdir($packageVersionDirectory);
 
         $pharPackageXmlFile = 'phar://' . $fileName . DIRECTORY_SEPARATOR . 'package.xml';
         if (!$this->fileSystem->exists($pharPackageXmlFile)) {
@@ -148,12 +145,29 @@ class UploadCommand extends BaseCommand
             );
         }
 
+        $packageXmlElement = simplexml_load_file($pharPackageXmlFile);
+        if (!$packageXmlElement instanceof SimpleXMLElement) {
+            throw new Exception\RuntimeException(
+                sprintf('Invalid content of file package.xml: "%s"', $fileName)
+            );
+        }
+
+        $xmlProcessor->setChildValue($packageXmlElement, 'version', $packageVersion);
+        if (!$xmlProcessor->getChildValue($packageXmlElement, 'notes')) {
+            $xmlProcessor->setChildValue($packageXmlElement, 'notes', 'Release ' . $packageVersion);
+        }
+
         $packageFileName = $packageVersionDirectory . DIRECTORY_SEPARATOR . $packageName . '-' . $packageVersion . '.tgz';
-//        $this->fileSystem->rename($fileName, $packageFileName);
-        $this->fileSystem->copy($fileName, $packageFileName);
+
+        $phar = new PharData($fileName);
+        $phar->addFromString('package.xml', $packageXmlElement->asXML());
+
+        $this->fileSystem->mkdir($packageDirectory);
+        $this->fileSystem->mkdir($packageVersionDirectory);
+        $this->fileSystem->rename($fileName, $packageFileName);
         $this->fileSystem->dumpFile(
             $packageVersionDirectory . DIRECTORY_SEPARATOR . 'package.xml',
-            file_get_contents($pharPackageXmlFile)
+            $packageXmlElement->asXML()
         );
         $this->fileSystem->dumpFile($releasesFile, $releasesXml->asXML());
         $this->fileSystem->dumpFile($packagesFile, $packagesXml->asXML());
