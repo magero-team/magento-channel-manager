@@ -47,8 +47,7 @@ class UploadCommand extends BaseCommand
             self::OPTION_PACKAGE_STABILITY,
             's',
             Input\InputOption::VALUE_REQUIRED,
-            'Package stability',
-            'stable'
+            'Package stability'
         );
 
         $this->addOption(
@@ -83,25 +82,50 @@ class UploadCommand extends BaseCommand
             );
         }
 
-        $stability = $input->getOption(self::OPTION_PACKAGE_STABILITY);
-        if (!in_array($stability, array('alpha', 'beta', 'stable'))) {
-            $stability = 'stable';
+        $packageFilePhar = new PharData($fileName);
+        if (!$packageFilePhar->offsetExists('package.xml')) {
+            throw new Exception\RuntimeException(
+                sprintf('File package.xml is not present in package "%s"', $fileName)
+            );
+        }
+
+        /** @var \PharFileInfo $packageXmlFile */
+        $packageXmlFile = $packageFilePhar->offsetGet('package.xml');
+        $packageXmlElement = simplexml_load_file($packageXmlFile->getFileInfo()->getPathname());
+        if (!$packageXmlElement instanceof SimpleXMLElement) {
+            throw new Exception\RuntimeException(
+                sprintf('Invalid content of file package.xml from package "%s"', $fileName)
+            );
         }
 
         $xmlProcessor = new XmlProcessor();
 
+        $xmlProcessor->setChildValue($packageXmlElement, 'version', $packageVersion);
+        if (!$xmlProcessor->getChildValue($packageXmlElement, 'notes')) {
+            $xmlProcessor->setChildValue($packageXmlElement, 'notes', 'Release ' . $packageVersion);
+        }
+
+        $stability = $input->getOption(self::OPTION_PACKAGE_STABILITY);
+        if (!$stability) {
+            $stability = $xmlProcessor->getChildValue($packageXmlElement, 'stability');
+        }
+        if (!in_array($stability, array('alpha', 'beta', 'stable'))) {
+            $stability = 'stable';
+        }
+        $xmlProcessor->setChildValue($packageXmlElement, 'stability', $stability);
+
         $packagesFile = $app->getChannelDirectory('packages.xml');
         if ($this->fileSystem->exists($packagesFile)) {
-            $packagesXml = simplexml_load_file($packagesFile);
+            $packagesXmlElement = simplexml_load_file($packagesFile);
         } else {
-            $packagesXml = simplexml_load_string("<?xml version=\"1.0\"?><data/>");
+            $packagesXmlElement = simplexml_load_string("<?xml version=\"1.0\"?><data/>");
         }
-        if (!$packageXmlElement = $xmlProcessor->getPackageByName($packagesXml, $packageName)) {
-            $packageXmlElement = $packagesXml->addChild('p');
-            $packageXmlElement->addChild('n')[0] = $packageName;
+        if (!$packagesPackageXmlElement = $xmlProcessor->getPackageByName($packagesXmlElement, $packageName)) {
+            $packagesPackageXmlElement = $packagesXmlElement->addChild('p');
+            $packagesPackageXmlElement->addChild('n')[0] = $packageName;
         }
-        if (!$packageReleasesXmlElement = $xmlProcessor->getChild($packageXmlElement, 'r')) {
-            $packageReleasesXmlElement = $packageXmlElement->addChild('r');
+        if (!$packagesPackageReleasesXmlElement = $xmlProcessor->getChild($packagesPackageXmlElement, 'r')) {
+            $packagesPackageReleasesXmlElement = $packagesPackageXmlElement->addChild('r');
         }
 
         $stabilityTag = 's';
@@ -113,8 +137,8 @@ class UploadCommand extends BaseCommand
                 $stabilityTag = 'b';
                 break;
         }
-        if (!$packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packageReleasesXmlElement, $stabilityTag)) {
-            $packageReleaseStabilityXmlElement = $packageReleasesXmlElement->addChild($stabilityTag);
+        if (!$packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packagesPackageReleasesXmlElement, $stabilityTag)) {
+            $packageReleaseStabilityXmlElement = $packagesPackageReleasesXmlElement->addChild($stabilityTag);
         }
         $packageReleaseStabilityXmlElement[0] = $packageVersion;
 
@@ -138,39 +162,18 @@ class UploadCommand extends BaseCommand
 
         $packageVersionDirectory = $app->getChannelDirectory($packageName . DIRECTORY_SEPARATOR . $packageVersion);
 
-        $pharPackageXmlFile = 'phar://' . $fileName . DIRECTORY_SEPARATOR . 'package.xml';
-        if (!$this->fileSystem->exists($pharPackageXmlFile)) {
-            throw new Exception\RuntimeException(
-                sprintf('File package.xml is not present in "%s"', $fileName)
-            );
-        }
-
-        $packageXmlElement = simplexml_load_file($pharPackageXmlFile);
-        if (!$packageXmlElement instanceof SimpleXMLElement) {
-            throw new Exception\RuntimeException(
-                sprintf('Invalid content of file package.xml: "%s"', $fileName)
-            );
-        }
-
-        $xmlProcessor->setChildValue($packageXmlElement, 'version', $packageVersion);
-        if (!$xmlProcessor->getChildValue($packageXmlElement, 'notes')) {
-            $xmlProcessor->setChildValue($packageXmlElement, 'notes', 'Release ' . $packageVersion);
-        }
-
         $packageFileName = $packageVersionDirectory . DIRECTORY_SEPARATOR . $packageName . '-' . $packageVersion . '.tgz';
-
-        $phar = new PharData($fileName);
-        $phar->addFromString('package.xml', $packageXmlElement->asXML());
 
         $this->fileSystem->mkdir($packageDirectory);
         $this->fileSystem->mkdir($packageVersionDirectory);
+        $packageFilePhar->addFromString('package.xml', $packageXmlElement->asXML());
         $this->fileSystem->rename($fileName, $packageFileName);
         $this->fileSystem->dumpFile(
             $packageVersionDirectory . DIRECTORY_SEPARATOR . 'package.xml',
             $packageXmlElement->asXML()
         );
         $this->fileSystem->dumpFile($releasesFile, $releasesXml->asXML());
-        $this->fileSystem->dumpFile($packagesFile, $packagesXml->asXML());
+        $this->fileSystem->dumpFile($packagesFile, $packagesXmlElement->asXML());
 
         $output->writeln('Package was uploaded successfully');
     }
