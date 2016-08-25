@@ -124,7 +124,8 @@ class UploadCommand extends BaseCommand
             $packagesPackageXmlElement = $packagesXmlElement->addChild('p');
             $packagesPackageXmlElement->addChild('n')[0] = $packageName;
         }
-        if (!$packagesPackageReleasesXmlElement = $xmlProcessor->getChild($packagesPackageXmlElement, 'r')) {
+        $packagesPackageReleasesXmlElement = $xmlProcessor->getChild($packagesPackageXmlElement, 'r');
+        if (is_null($packagesPackageReleasesXmlElement)) {
             $packagesPackageReleasesXmlElement = $packagesPackageXmlElement->addChild('r');
         }
 
@@ -137,7 +138,8 @@ class UploadCommand extends BaseCommand
                 $stabilityTag = 'b';
                 break;
         }
-        if (!$packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packagesPackageReleasesXmlElement, $stabilityTag)) {
+        $packageReleaseStabilityXmlElement = $xmlProcessor->getChild($packagesPackageReleasesXmlElement, $stabilityTag);
+        if (is_null($packageReleaseStabilityXmlElement)) {
             $packageReleaseStabilityXmlElement = $packagesPackageReleasesXmlElement->addChild($stabilityTag);
         }
         $packageReleaseStabilityXmlElement[0] = $packageVersion;
